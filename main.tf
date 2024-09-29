@@ -1,11 +1,3 @@
-
-variable "node_instance_type" {
-    default =  "t2.micro"
-}
-variable "node_instance_count" {
-    default =  2
-}
-
 terraform {
   required_providers {
     aws = {
@@ -18,12 +10,13 @@ terraform {
 }
 
 provider "aws" {
-  region  = "eu-west-2"
+  region = "eu-west-2"
 }
 
+# creating the frontend system
 
-resource "aws_security_group" "allow_ssh" {
-    name = "allow_ssh"
+resource "aws_security_group" "frontend-sg" {
+  name = "ms-cleaning-service-frontend-sg"
   # ... other configuration ...
 
   egress {
@@ -33,7 +26,7 @@ resource "aws_security_group" "allow_ssh" {
     cidr_blocks      = ["0.0.0.0/0"]
     ipv6_cidr_blocks = ["::/0"]
   }
-  
+
   ingress {
     from_port        = 22
     to_port          = 22
@@ -41,15 +34,66 @@ resource "aws_security_group" "allow_ssh" {
     cidr_blocks      = ["0.0.0.0/0"]
     ipv6_cidr_blocks = ["::/0"]
   }
-}
-
-resource "aws_instance" "app_server" {
-  ami           = "ami-0b45ae66668865cd6"
-  instance_type = var.node_instance_type
-  count = var.node_instance_count
-  key_name = "hello123"
-  vpc_security_group_ids =  [aws_security_group.allow_ssh.id]
-  tags = {
-    Name = "Node1"
+  ingress {
+    from_port        = 5173
+    to_port          = 5173
+    protocol         = "tcp"
+    cidr_blocks      = ["0.0.0.0/0"]
+    ipv6_cidr_blocks = ["::/0"]
   }
 }
+
+resource "aws_instance" "front-end" {
+  ami                    = var.frontend_ami
+  instance_type          = var.frontend_instance_type
+  key_name               = var.frontend_key_name
+  user_data              = file("./frontend-install.sh")
+  vpc_security_group_ids = [aws_security_group.frontend-sg.id]
+  tags = {
+    Name = "front-end"
+  }
+}
+
+
+
+# creating the backend system
+resource "aws_security_group" "backend-sg" {
+  name = "ms-cleaning-service-backend-sg"
+  # ... other configuration ...
+
+  egress {
+    from_port        = 0
+    to_port          = 0
+    protocol         = "-1"
+    cidr_blocks      = ["0.0.0.0/0"]
+    ipv6_cidr_blocks = ["::/0"]
+  }
+
+  ingress {
+    from_port        = 22
+    to_port          = 22
+    protocol         = "tcp"
+    cidr_blocks      = ["0.0.0.0/0"]
+    ipv6_cidr_blocks = ["::/0"]
+  }
+  ingress {
+    from_port        = 80
+    to_port          = 80
+    protocol         = "tcp"
+    cidr_blocks      = ["0.0.0.0/0"]
+    ipv6_cidr_blocks = ["::/0"]
+  }
+}
+
+resource "aws_instance" "backend" {
+  ami                    = var.backend_ami
+  instance_type          = var.backend_instance_type
+  key_name               = var.backend_key_name
+  #user_data              = file("./backend-install.sh")
+  vpc_security_group_ids = [aws_security_group.backend-sg.id]
+  tags = {
+    Name = "backend"
+  }
+}
+
+
